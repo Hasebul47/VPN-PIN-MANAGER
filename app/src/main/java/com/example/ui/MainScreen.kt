@@ -37,10 +37,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.entity.VpnSubscriber
 import com.example.ui.components.VpnHeader
 import com.example.ui.dialogs.AddEditSubscriberDialog
-import com.example.ui.dialogs.AuthDialog
 import com.example.ui.dialogs.CloudSyncBackupDialog
 import com.example.ui.dialogs.RecordPaymentDialog
 import com.example.ui.dialogs.RenewSubscriptionDialog
+import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.FinancialOverviewScreen
 import com.example.ui.screens.PaymentsScreen
 import com.example.ui.screens.SubscribersListScreen
@@ -86,7 +86,6 @@ fun MainScreen(
     var subscriberToPay by remember { mutableStateOf<VpnSubscriber?>(null) }
     var subscriberToDelete by remember { mutableStateOf<VpnSubscriber?>(null) }
     var showCloudBackupDialog by remember { mutableStateOf(false) }
-    var showAuthDialog by remember { mutableStateOf(false) }
 
     // In-App Auto Update State
     val updateState by AppUpdateManager.updateState.collectAsStateWithLifecycle()
@@ -95,6 +94,25 @@ fun MainScreen(
 
     LaunchedEffect(Unit) {
         AppUpdateManager.checkForUpdates()
+    }
+
+    // Without login, completely hide dashboard background and show full-screen AuthScreen
+    if (currentUser == null) {
+        AuthScreen(
+            authRepository = viewModel.authRepository,
+            onAuthSuccess = {}
+        )
+
+        UpdateDialog(
+            updateState = updateState,
+            onDismiss = { AppUpdateManager.resetState() },
+            onStartDownload = { url ->
+                scope.launch {
+                    AppUpdateManager.downloadAndInstallApk(context, url)
+                }
+            }
+        )
+        return
     }
 
     Scaffold(
@@ -362,15 +380,6 @@ fun MainScreen(
             onDismiss = { showCloudBackupDialog = false },
             onExportJson = { viewModel.exportBackupJson() },
             onImportJson = { json -> viewModel.importBackupJson(json) }
-        )
-    }
-
-    // Mandatory Authentication Gate (Shown whenever not logged in)
-    if (currentUser == null) {
-        AuthDialog(
-            authRepository = viewModel.authRepository,
-            onDismiss = {},
-            onAuthSuccess = {}
         )
     }
 
