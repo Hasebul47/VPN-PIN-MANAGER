@@ -37,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import com.example.ui.theme.PolishError
 import com.example.ui.theme.PolishErrorContainer
 import com.example.ui.theme.PolishOnErrorContainer
@@ -62,7 +63,11 @@ fun UpdateDialog(
     when (updateState) {
         is UpdateState.UpdateAvailable -> {
             AlertDialog(
-                onDismissRequest = onDismiss,
+                onDismissRequest = { /* Mandatory Update: Cannot dismiss */ },
+                properties = DialogProperties(
+                    dismissOnBackPress = false,
+                    dismissOnClickOutside = false
+                ),
                 shape = RoundedCornerShape(24.dp),
                 title = {
                     Row(
@@ -85,13 +90,13 @@ fun UpdateDialog(
                         }
                         Column {
                             Text(
-                                text = "নতুন আপডেট পাওয়া গেছে!",
+                                text = "বাধ্যতামূলক আপডেট!",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = PolishTextPrimary
                             )
                             Text(
-                                text = "Update Available (${updateState.latestVersion})",
+                                text = "Mandatory Update (${updateState.latestVersion})",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = PolishTextSecondary
                             )
@@ -137,9 +142,10 @@ fun UpdateDialog(
                         }
 
                         Text(
-                            text = "নতুন ফিচার ও বাগ ফিক্স পেতে অ্যাপটি এখনই আপডেট করুন। (Update now for latest features & fixes.)",
+                            text = "অ্যাপটি ব্যবহার করতে নতুন সংস্করণটি আপডেট করা বাধ্যতামূলক। (You must update the app to continue using it.)",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = PolishTextSecondary
+                            color = PolishTextPrimary,
+                            fontWeight = FontWeight.Medium
                         )
 
                         if (updateState.releaseNotes.isNotBlank()) {
@@ -170,24 +176,25 @@ fun UpdateDialog(
                     Button(
                         onClick = { onStartDownload(updateState.apkUrl) },
                         colors = ButtonDefaults.buttonColors(containerColor = PolishPrimary),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(imageVector = Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("আপডেট করুন (Update Now)", color = PolishOnPrimary)
+                        Text("এখনই আপডেট করুন (Update Now)", color = PolishOnPrimary, fontWeight = FontWeight.Bold)
                     }
                 },
-                dismissButton = {
-                    TextButton(onClick = onDismiss) {
-                        Text("পরে (Later)", color = PolishTextSecondary)
-                    }
-                }
+                dismissButton = null
             )
         }
 
         is UpdateState.Downloading -> {
             AlertDialog(
                 onDismissRequest = { /* Non-dismissible while downloading */ },
+                properties = DialogProperties(
+                    dismissOnBackPress = false,
+                    dismissOnClickOutside = false
+                ),
                 shape = RoundedCornerShape(24.dp),
                 title = {
                     Row(
@@ -250,7 +257,11 @@ fun UpdateDialog(
 
         is UpdateState.ReadyToInstall -> {
             AlertDialog(
-                onDismissRequest = onDismiss,
+                onDismissRequest = { /* Mandatory: Must install */ },
+                properties = DialogProperties(
+                    dismissOnBackPress = false,
+                    dismissOnClickOutside = false
+                ),
                 shape = RoundedCornerShape(24.dp),
                 title = {
                     Text(
@@ -262,7 +273,7 @@ fun UpdateDialog(
                 },
                 text = {
                     Text(
-                        text = "নতুন সংস্করণ ইন্সটল করতে নিচের বাটনে চাপ দিন। (Tap button below to install new version.)",
+                        text = "অ্যাপটি ব্যবহার করতে নতুন সংস্করণ ইন্সটল সম্পন্ন করুন। (Please install the new version to continue.)",
                         style = MaterialTheme.typography.bodyMedium,
                         color = PolishTextSecondary
                     )
@@ -271,16 +282,13 @@ fun UpdateDialog(
                     Button(
                         onClick = { AppUpdateManager.installApk(context, updateState.apkFile) },
                         colors = ButtonDefaults.buttonColors(containerColor = PolishPrimary),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("ইন্সটল করুন (Install Now)", color = PolishOnPrimary)
+                        Text("এখনই ইন্সটল করুন (Install Now)", color = PolishOnPrimary, fontWeight = FontWeight.Bold)
                     }
                 },
-                dismissButton = {
-                    TextButton(onClick = onDismiss) {
-                        Text("বাতিল (Cancel)", color = PolishTextSecondary)
-                    }
-                }
+                dismissButton = null
             )
         }
 
