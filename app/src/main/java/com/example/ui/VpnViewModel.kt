@@ -41,11 +41,37 @@ class VpnViewModel(application: Application) : AndroidViewModel(application) {
     val authRepository: FirebaseAuthRepository = FirebaseAuthRepository()
     val currentUser: StateFlow<FirebaseUser?> = authRepository.currentUser
 
+    val isSyncing = MutableStateFlow(false)
+
     init {
         val db = AppDatabase.getDatabase(application)
         repository = VpnRepository(db.vpnSubscriberDao(), db.paymentTransactionDao())
         viewModelScope.launch {
-            repository.populateSampleDataIfEmpty()
+            currentUser.collect { user ->
+                if (user != null) {
+                    isSyncing.value = true
+                    repository.syncFromCloud(user.uid)
+                    isSyncing.value = false
+                } else {
+                    repository.clearLocalData()
+                }
+            }
+        }
+    }
+
+    fun signOut() {
+        viewModelScope.launch {
+            repository.clearLocalData()
+            authRepository.signOut()
+        }
+    }
+
+    fun refreshFromCloud() {
+        val user = currentUser.value ?: return
+        viewModelScope.launch {
+            isSyncing.value = true
+            repository.syncFromCloud(user.uid)
+            isSyncing.value = false
         }
     }
 

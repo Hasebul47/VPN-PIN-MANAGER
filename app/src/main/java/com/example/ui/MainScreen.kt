@@ -104,8 +104,8 @@ fun MainScreen(
             VpnHeader(
                 currentUser = currentUser,
                 onOpenCloudBackup = { showCloudBackupDialog = true },
-                onAuthClick = { showAuthDialog = true },
-                onSignOutClick = { viewModel.authRepository.signOut() }
+                onAuthClick = {},
+                onSignOutClick = { viewModel.signOut() }
             )
         },
         bottomBar = {
@@ -365,12 +365,12 @@ fun MainScreen(
         )
     }
 
-    // Authentication Dialog
-    if (showAuthDialog) {
+    // Mandatory Authentication Gate (Shown whenever not logged in)
+    if (currentUser == null) {
         AuthDialog(
             authRepository = viewModel.authRepository,
-            onDismiss = { showAuthDialog = false },
-            onAuthSuccess = { showAuthDialog = false }
+            onDismiss = {},
+            onAuthSuccess = {}
         )
     }
 

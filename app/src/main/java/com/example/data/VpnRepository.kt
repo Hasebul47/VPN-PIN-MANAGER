@@ -4,17 +4,32 @@ import com.example.data.dao.PaymentTransactionDao
 import com.example.data.dao.VpnSubscriberDao
 import com.example.data.entity.PaymentTransaction
 import com.example.data.entity.VpnSubscriber
+import com.example.data.sync.FirestoreSyncManager
 import kotlinx.coroutines.flow.Flow
 
 class VpnRepository(
     private val subscriberDao: VpnSubscriberDao,
-    private val transactionDao: PaymentTransactionDao
+    private val transactionDao: PaymentTransactionDao,
+    private val syncManager: FirestoreSyncManager = FirestoreSyncManager()
 ) {
+    @Volatile
+    var currentUserId: String? = null
+
     val allSubscribers: Flow<List<VpnSubscriber>> = subscriberDao.getAllSubscribers()
     val allTransactions: Flow<List<PaymentTransaction>> = transactionDao.getAllTransactions()
 
     fun getTransactionsForSubscriber(subscriberId: Long): Flow<List<PaymentTransaction>> {
         return transactionDao.getTransactionsForSubscriber(subscriberId)
+    }
+
+    suspend fun syncFromCloud(userId: String): Result<Unit> {
+        currentUserId = userId
+        return syncManager.syncUserFromCloud(userId, subscriberDao, transactionDao)
+    }
+
+    suspend fun clearLocalData() {
+        currentUserId = null
+        syncManager.clearLocalData(subscriberDao, transactionDao)
     }
 
     suspend fun addSubscriber(
@@ -23,29 +38,43 @@ class VpnRepository(
         trxId: String = ""
     ): Long {
         val id = subscriberDao.insertSubscriber(subscriber)
+        val savedSubscriber = subscriber.copy(id = id)
+
+        currentUserId?.let { uid ->
+            syncManager.saveSubscriber(uid, savedSubscriber)
+        }
+
         if (subscriber.paidAmount > 0) {
-            transactionDao.insertTransaction(
-                PaymentTransaction(
-                    subscriberId = id,
-                    customerName = subscriber.customerName,
-                    amount = subscriber.paidAmount,
-                    paymentDateEpochMs = System.currentTimeMillis(),
-                    paymentMethod = initialPaymentMethod,
-                    transactionNote = "সাবস্ক্রিপশন শুরু ও প্রাথমিক পেমেন্ট",
-                    trxId = trxId
-                )
+            val initialTx = PaymentTransaction(
+                subscriberId = id,
+                customerName = subscriber.customerName,
+                amount = subscriber.paidAmount,
+                paymentDateEpochMs = System.currentTimeMillis(),
+                paymentMethod = initialPaymentMethod,
+                transactionNote = "সাবস্ক্রিপশন শুরু ও প্রাথমিক পেমেন্ট",
+                trxId = trxId
             )
+            val txId = transactionDao.insertTransaction(initialTx)
+            currentUserId?.let { uid ->
+                syncManager.saveTransaction(uid, initialTx.copy(id = txId))
+            }
         }
         return id
     }
 
     suspend fun updateSubscriber(subscriber: VpnSubscriber) {
         subscriberDao.updateSubscriber(subscriber)
+        currentUserId?.let { uid ->
+            syncManager.saveSubscriber(uid, subscriber)
+        }
     }
 
     suspend fun deleteSubscriber(subscriber: VpnSubscriber) {
         transactionDao.deleteBySubscriberId(subscriber.id)
         subscriberDao.deleteSubscriber(subscriber)
+        currentUserId?.let { uid ->
+            syncManager.deleteSubscriber(uid, subscriber.id)
+        }
     }
 
     suspend fun recordPayment(
@@ -55,19 +84,25 @@ class VpnRepository(
         trxId: String,
         note: String
     ) {
-        val updatedPaid = subscriber.paidAmount + paymentAmount
-        subscriberDao.updateSubscriber(subscriber.copy(paidAmount = updatedPaid))
-        transactionDao.insertTransaction(
-            PaymentTransaction(
-                subscriberId = subscriber.id,
-                customerName = subscriber.customerName,
-                amount = paymentAmount,
-                paymentDateEpochMs = System.currentTimeMillis(),
-                paymentMethod = paymentMethod,
-                transactionNote = if (note.isBlank()) "বকেয়া বিল পরিশোধ" else note,
-                trxId = trxId
-            )
+        val updatedSub = subscriber.copy(paidAmount = subscriber.paidAmount + paymentAmount)
+        subscriberDao.updateSubscriber(updatedSub)
+        currentUserId?.let { uid ->
+            syncManager.saveSubscriber(uid, updatedSub)
+        }
+
+        val tx = PaymentTransaction(
+            subscriberId = subscriber.id,
+            customerName = subscriber.customerName,
+            amount = paymentAmount,
+            paymentDateEpochMs = System.currentTimeMillis(),
+            paymentMethod = paymentMethod,
+            transactionNote = if (note.isBlank()) "বকেয়া বিল পরিশোধ" else note,
+            trxId = trxId
         )
+        val txId = transactionDao.insertTransaction(tx)
+        currentUserId?.let { uid ->
+            syncManager.saveTransaction(uid, tx.copy(id = txId))
+        }
     }
 
     suspend fun renewSubscription(
@@ -84,125 +119,32 @@ class VpnRepository(
             System.currentTimeMillis()
         }
         val newExpiry = baseTime + (additionalDays.toLong() * 24 * 60 * 60 * 1000L)
-        // Reset monthly fee and paid amount for new period, carrying over any previous remaining balance or due
-        val newMonthlyFee = renewalFee
-        val newPaidAmount = paidNow
-
-        subscriberDao.updateSubscriber(
-            subscriber.copy(
-                startDateEpochMs = System.currentTimeMillis(),
-                expiryDateEpochMs = newExpiry,
-                monthlyFee = newMonthlyFee,
-                paidAmount = newPaidAmount
-            )
+        val updatedSub = subscriber.copy(
+            startDateEpochMs = System.currentTimeMillis(),
+            expiryDateEpochMs = newExpiry,
+            monthlyFee = renewalFee,
+            paidAmount = paidNow
         )
 
-        if (paidNow > 0) {
-            transactionDao.insertTransaction(
-                PaymentTransaction(
-                    subscriberId = subscriber.id,
-                    customerName = subscriber.customerName,
-                    amount = paidNow,
-                    paymentDateEpochMs = System.currentTimeMillis(),
-                    paymentMethod = paymentMethod,
-                    transactionNote = "মাসিক সাবস্ক্রিপশন রিনিউয়াল ($additionalDays দিন)",
-                    trxId = trxId
-                )
-            )
+        subscriberDao.updateSubscriber(updatedSub)
+        currentUserId?.let { uid ->
+            syncManager.saveSubscriber(uid, updatedSub)
         }
-    }
 
-    suspend fun populateSampleDataIfEmpty() {
-        if (subscriberDao.getSubscriberCount() == 0) {
-            val now = System.currentTimeMillis()
-            val dayMs = 24 * 60 * 60 * 1000L
-
-            val sub1 = VpnSubscriber(
-                customerName = "হাসান মাহমুদ (Hasan)",
-                phoneNumber = "01711223344",
-                vpnPin = "STARK-984210",
-                serviceName = "Stark VPN",
-                startDateEpochMs = now - (28 * dayMs),
-                expiryDateEpochMs = now + (2 * dayMs), // Expiring in 2 days!
-                monthlyFee = 300.0,
-                paidAmount = 200.0, // ৳100 due!
-                notes = "দুবাই প্রবাসীকে পিন দেওয়া হয়েছে"
+        if (paidNow > 0) {
+            val tx = PaymentTransaction(
+                subscriberId = subscriber.id,
+                customerName = subscriber.customerName,
+                amount = paidNow,
+                paymentDateEpochMs = System.currentTimeMillis(),
+                paymentMethod = paymentMethod,
+                transactionNote = "মাসিক সাবস্ক্রিপশন রিনিউয়াল ($additionalDays দিন)",
+                trxId = trxId
             )
-
-            val sub2 = VpnSubscriber(
-                customerName = "তানভীর আহমেদ (Tanvir)",
-                phoneNumber = "01822334455",
-                vpnPin = "OUTLINE-551982",
-                serviceName = "Outline VPN",
-                startDateEpochMs = now - (10 * dayMs),
-                expiryDateEpochMs = now + (20 * dayMs), // Active 20 days left
-                monthlyFee = 250.0,
-                paidAmount = 250.0, // Fully paid
-                notes = "ইউটিউব ও ব্রাউজিং স্পিড ভালো চায়"
-            )
-
-            val sub3 = VpnSubscriber(
-                customerName = "সাকিব চৌধুরী (Sakib)",
-                phoneNumber = "01933445566",
-                vpnPin = "EXPRESS-110482",
-                serviceName = "Express VPN",
-                startDateEpochMs = now - (32 * dayMs),
-                expiryDateEpochMs = now - (1 * dayMs), // Expired yesterday!
-                monthlyFee = 350.0,
-                paidAmount = 0.0, // Fully due
-                notes = "মেয়াদ শেষ, বিল এখনও বকেয়া"
-            )
-
-            val sub4 = VpnSubscriber(
-                customerName = "রাকিব হাসান (Rakib)",
-                phoneNumber = "01644556677",
-                vpnPin = "FAST-772911",
-                serviceName = "Fast VPN",
-                startDateEpochMs = now - (5 * dayMs),
-                expiryDateEpochMs = now + (25 * dayMs), // Active
-                monthlyFee = 200.0,
-                paidAmount = 200.0,
-                notes = "নগদে পেমেন্ট করেছে"
-            )
-
-            val id1 = subscriberDao.insertSubscriber(sub1)
-            val id2 = subscriberDao.insertSubscriber(sub2)
-            val id4 = subscriberDao.insertSubscriber(sub4)
-
-            transactionDao.insertTransaction(
-                PaymentTransaction(
-                    subscriberId = id1,
-                    customerName = sub1.customerName,
-                    amount = 200.0,
-                    paymentDateEpochMs = now - (28 * dayMs),
-                    paymentMethod = "bKash",
-                    transactionNote = "প্রাথমিক আংশিক পেমেন্ট",
-                    trxId = "BK889123"
-                )
-            )
-            transactionDao.insertTransaction(
-                PaymentTransaction(
-                    subscriberId = id2,
-                    customerName = sub2.customerName,
-                    amount = 250.0,
-                    paymentDateEpochMs = now - (10 * dayMs),
-                    paymentMethod = "Nagad",
-                    transactionNote = "পূর্ণ মাসিক ফি পরিশোধ",
-                    trxId = "NG110944"
-                )
-            )
-            transactionDao.insertTransaction(
-                PaymentTransaction(
-                    subscriberId = id4,
-                    customerName = sub4.customerName,
-                    amount = 200.0,
-                    paymentDateEpochMs = now - (5 * dayMs),
-                    paymentMethod = "Nagad",
-                    transactionNote = "সম্পূর্ণ মাসিক বিল পরিশোধ",
-                    trxId = "NG992812"
-                )
-            )
-            subscriberDao.insertSubscriber(sub3)
+            val txId = transactionDao.insertTransaction(tx)
+            currentUserId?.let { uid ->
+                syncManager.saveTransaction(uid, tx.copy(id = txId))
+            }
         }
     }
 }

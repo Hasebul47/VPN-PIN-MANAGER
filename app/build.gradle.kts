@@ -17,8 +17,8 @@ android {
     applicationId = "com.aistudio.vpntracker.qxkmfv"
     minSdk = 24
     targetSdk = 36
-    versionCode = 3
-    versionName = "1.2"
+    versionCode = 4
+    versionName = "1.3"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -96,7 +96,7 @@ dependencies {
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
   // Uncomment to use Firestore:
-  // implementation(libs.firebase.firestore)
+  implementation(libs.firebase.firestore)
 
   // Uncomment ALL FOUR of the following dependencies together to use Firebase Auth and Google
   // Sign-In via Credential Manager:

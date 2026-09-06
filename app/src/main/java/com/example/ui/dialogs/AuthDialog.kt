@@ -102,8 +102,12 @@ fun AuthDialog(
     val focusManager = LocalFocusManager.current
 
     Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        onDismissRequest = { /* Mandatory: Cannot be dismissed without authentication */ },
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false
+        )
     ) {
         Surface(
             modifier = Modifier
@@ -545,18 +549,34 @@ fun AuthDialog(
                             fontWeight = FontWeight.SemiBold
                         )
                     }
-                } else {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp),
-                        shape = RoundedCornerShape(12.dp)
+                } else if (selectedTab == 0) {
+                    TextButton(
+                        onClick = {
+                            selectedTab = 1
+                            errorMessage = null
+                            successMessage = null
+                        }
                     ) {
                         Text(
-                            text = "অতিথি হিসেবে চালিয়ে যান (Guest Mode)",
-                            color = PolishTextSecondary,
-                            fontSize = 13.sp
+                            text = "অ্যাকাউন্ট নেই? নতুন নিবন্ধন করুন (Register)",
+                            color = PolishPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                } else {
+                    TextButton(
+                        onClick = {
+                            selectedTab = 0
+                            errorMessage = null
+                            successMessage = null
+                        }
+                    ) {
+                        Text(
+                            text = "ইতিমধ্যে অ্যাকাউন্ট আছে? লগইন করুন (Sign In)",
+                            color = PolishPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
