@@ -43,6 +43,13 @@ import com.example.ui.dialogs.RenewSubscriptionDialog
 import com.example.ui.screens.FinancialOverviewScreen
 import com.example.ui.screens.PaymentsScreen
 import com.example.ui.screens.SubscribersListScreen
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
+import com.example.ui.dialogs.UpdateDialog
+import com.example.util.AppUpdateManager
+import com.example.util.UpdateState
 import com.example.ui.theme.PolishBg
 import com.example.ui.theme.PolishError
 import com.example.ui.theme.PolishPrimary
@@ -77,6 +84,15 @@ fun MainScreen(
     var subscriberToPay by remember { mutableStateOf<VpnSubscriber?>(null) }
     var subscriberToDelete by remember { mutableStateOf<VpnSubscriber?>(null) }
     var showCloudBackupDialog by remember { mutableStateOf(false) }
+
+    // In-App Auto Update State
+    val updateState by AppUpdateManager.updateState.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        AppUpdateManager.checkForUpdates()
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -342,4 +358,15 @@ fun MainScreen(
             onImportJson = { json -> viewModel.importBackupJson(json) }
         )
     }
+
+    // In-App Auto Update Dialog
+    UpdateDialog(
+        updateState = updateState,
+        onDismiss = { AppUpdateManager.resetState() },
+        onStartDownload = { url ->
+            scope.launch {
+                AppUpdateManager.downloadAndInstallApk(context, url)
+            }
+        }
+    )
 }

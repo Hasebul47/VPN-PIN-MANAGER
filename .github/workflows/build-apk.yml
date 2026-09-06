@@ -1,15 +1,31 @@
-name: Build Android APK
+name: Build & Release Android APK
 
 on:
   push:
     branches: [ "main", "master" ]
+    tags:
+      - "v*"
   pull_request:
     branches: [ "main", "master" ]
   workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create a GitHub Release?'
+        required: false
+        type: boolean
+        default: false
+      tag_name:
+        description: 'Release tag (e.g. v1.0.1)'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: write
 
 jobs:
   build:
-    name: Build Debug APK
+    name: Build & Release APK
     runs-on: ubuntu-latest
 
     steps:
@@ -38,10 +54,23 @@ jobs:
       - name: Build Debug APK with Gradle
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
+      - name: Prepare Named APK
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk VPN-Pin-Manager.apk
+
       - name: Upload APK as downloadable artifact
         uses: actions/upload-artifact@v4
         with:
           name: VPN-Pin-Manager-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: VPN-Pin-Manager.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish to GitHub Releases
+        if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: VPN-Pin-Manager.apk
+          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
+          name: Release ${{ github.event.inputs.tag_name || github.ref_name }}
+          generate_release_notes: true
