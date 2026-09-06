@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1025173988345",
+    "project_id": "vpn-pin-manager",
+    "storage_bucket": "vpn-pin-manager.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1025173988345:android:789d256eb4f561e1a31328",
+        "android_client_info": {
+          "package_name": "com.aistudio.vpntracker.qxkmfv"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDkQBCE7K3AocjB2w_dAuZTbeCRgGy6MbI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
