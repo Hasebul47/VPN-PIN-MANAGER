@@ -37,6 +37,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.entity.VpnSubscriber
 import com.example.ui.components.VpnHeader
 import com.example.ui.dialogs.AddEditSubscriberDialog
+import com.example.ui.dialogs.AuthDialog
 import com.example.ui.dialogs.CloudSyncBackupDialog
 import com.example.ui.dialogs.RecordPaymentDialog
 import com.example.ui.dialogs.RenewSubscriptionDialog
@@ -69,6 +70,7 @@ fun MainScreen(
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val selectedFilter by viewModel.selectedFilter.collectAsStateWithLifecycle()
     val currentTab by viewModel.currentTab.collectAsStateWithLifecycle()
+    val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
 
     val now = System.currentTimeMillis()
     val totalCollected = allSubscribers.sumOf { it.paidAmount }
@@ -84,6 +86,7 @@ fun MainScreen(
     var subscriberToPay by remember { mutableStateOf<VpnSubscriber?>(null) }
     var subscriberToDelete by remember { mutableStateOf<VpnSubscriber?>(null) }
     var showCloudBackupDialog by remember { mutableStateOf(false) }
+    var showAuthDialog by remember { mutableStateOf(false) }
 
     // In-App Auto Update State
     val updateState by AppUpdateManager.updateState.collectAsStateWithLifecycle()
@@ -99,7 +102,10 @@ fun MainScreen(
         containerColor = PolishBg,
         topBar = {
             VpnHeader(
-                onOpenCloudBackup = { showCloudBackupDialog = true }
+                currentUser = currentUser,
+                onOpenCloudBackup = { showCloudBackupDialog = true },
+                onAuthClick = { showAuthDialog = true },
+                onSignOutClick = { viewModel.authRepository.signOut() }
             )
         },
         bottomBar = {
@@ -356,6 +362,15 @@ fun MainScreen(
             onDismiss = { showCloudBackupDialog = false },
             onExportJson = { viewModel.exportBackupJson() },
             onImportJson = { json -> viewModel.importBackupJson(json) }
+        )
+    }
+
+    // Authentication Dialog
+    if (showAuthDialog) {
+        AuthDialog(
+            authRepository = viewModel.authRepository,
+            onDismiss = { showAuthDialog = false },
+            onAuthSuccess = { showAuthDialog = false }
         )
     }
 

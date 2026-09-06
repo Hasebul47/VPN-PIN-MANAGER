@@ -5,8 +5,10 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.AppDatabase
 import com.example.data.VpnRepository
+import com.example.data.auth.FirebaseAuthRepository
 import com.example.data.entity.PaymentTransaction
 import com.example.data.entity.VpnSubscriber
+import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -36,6 +38,8 @@ enum class NavigationTab(val labelBn: String, val labelEn: String) {
 
 class VpnViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: VpnRepository
+    val authRepository: FirebaseAuthRepository = FirebaseAuthRepository()
+    val currentUser: StateFlow<FirebaseUser?> = authRepository.currentUser
 
     init {
         val db = AppDatabase.getDatabase(application)
