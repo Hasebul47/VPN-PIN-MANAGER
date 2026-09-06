@@ -1,0 +1,6 @@
+{
+  "name": "VPN Pin Manager",
+  "description": "ভিপিএন পিন সাবস্ক্রিপশন, মেয়াদ ট্র্যাকিং, এক্সপায়রি অ্যালার্ট এবং পেমেন্ট ও বকেয়া বিলিং ম্যানেজার।",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
